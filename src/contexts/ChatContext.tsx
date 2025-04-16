@@ -1,7 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from './AuthContext';
+import { loadConfig } from '@/utils/config';
 
 export interface Message {
   id: string;
@@ -119,6 +119,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     
     try {
+      const config = loadConfig();
+      
+      if (!config.openaiApiKey) {
+        throw new Error('OpenAI API key not configured');
+      }
+
       // Add user message
       const userMessage: Message = {
         id: `user-${Date.now()}`,
@@ -134,7 +140,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         updatedAt: new Date()
       };
       
-      // Update chat in chats array
       setChats(prevChats => {
         const otherChats = prevChats.filter(chat => chat.id !== currentChat.id);
         return [updatedChat, ...otherChats];
@@ -142,11 +147,26 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       
       setCurrentChat(updatedChat);
       
-      // Simulate API call to ChatGPT
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Generate mock response
-      let aiResponse = "I'm the ChatBPT AI assistant. This is a simulated response since we're not connecting to a real AI API yet. In a production environment, this would be an actual response from the OpenAI API or similar service.";
+      // Make real OpenAI API call
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.openaiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [{ role: 'user', content }],
+          temperature: 0.7,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response from OpenAI');
+      }
+
+      const data = await response.json();
+      const aiResponse = data.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
       
       // Update with AI response
       const assistantMessage: Message = {
@@ -156,22 +176,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         timestamp: new Date()
       };
       
-      // Update title if this is the first message
-      let chatTitle = updatedChat.title;
-      if (updatedChat.messages.length <= 1) {
-        // Use first few words of user message as title
-        chatTitle = content.split(' ').slice(0, 3).join(' ') + '...';
-      }
-      
       // Update chat with AI response
       const finalChat = {
         ...updatedChat,
-        title: chatTitle,
         messages: [...updatedChat.messages, assistantMessage],
         updatedAt: new Date()
       };
       
-      // Update in chats array
       setChats(prevChats => {
         const otherChats = prevChats.filter(chat => chat.id !== currentChat.id);
         return [finalChat, ...otherChats];
@@ -183,7 +194,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to send message:', error);
       toast({
         title: "Error",
-        description: "Failed to send message. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to send message. Please check your API configuration.",
         variant: "destructive"
       });
     } finally {
