@@ -1,23 +1,29 @@
-
 interface Config {
   openaiApiKey: string | null;
   azureEndpoint: string | null;
-  mongodbUri: string | null;
+  // mongodbUri: string | null; // Removed from frontend config
 }
 
-// This is a temporary solution. In production, use Supabase for secure credential management
+// Load configuration securely from environment variables
 const loadConfig = (): Config => {
+  const apiKey = import.meta.env.VITE_AZURE_OPENAI_API_KEY || null;
+  const endpoint = import.meta.env.VITE_AZURE_OPENAI_ENDPOINT || null;
+
+  if (!apiKey || !endpoint) {
+    console.warn(
+      'Azure OpenAI API Key or Endpoint is not configured in .env file. '
+      + 'Please set VITE_AZURE_OPENAI_API_KEY and VITE_AZURE_OPENAI_ENDPOINT.'
+    );
+  }
+
   return {
-    openaiApiKey: localStorage.getItem('openai_api_key'),
-    azureEndpoint: localStorage.getItem('azure_endpoint'),
-    mongodbUri: localStorage.getItem('mongodb_uri')
+    openaiApiKey: apiKey,
+    azureEndpoint: endpoint,
   };
 };
 
-const saveConfig = (config: Partial<Config>) => {
-  if (config.openaiApiKey) localStorage.setItem('openai_api_key', config.openaiApiKey);
-  if (config.azureEndpoint) localStorage.setItem('azure_endpoint', config.azureEndpoint);
-  if (config.mongodbUri) localStorage.setItem('mongodb_uri', config.mongodbUri);
-};
+// Remove saveConfig as keys are now managed via .env
+// const saveConfig = (...) => { ... };
 
-export { loadConfig, saveConfig, type Config };
+// Only export loadConfig and the type
+export { loadConfig, type Config };

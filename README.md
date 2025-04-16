@@ -1,73 +1,144 @@
-# Welcome to your Lovable project
+# ChatBPT - Enhanced ChatGPT Experience
 
-## Project info
+This project provides an innovative user experience for interacting with ChatGPT (specifically Azure OpenAI Service in this configuration). It features a React frontend and a Node.js/Express backend managing authentication, user tiers, chat history, and secure interaction with the AI.
 
-**URL**: https://lovable.dev/projects/379f3ce6-0a1b-4485-ba9f-f39a20ee8e0f
+## Features
 
-## How can I edit this code?
+- **User Authentication:** Secure signup and login using JWT (via HttpOnly cookies).
+- **Tiered Access:** Differentiates between 'Free' and 'Premium' users.
+- **Message Limiting:** Enforces daily message limits for free users on the backend.
+- **Chat History:** Stores chat conversations per user in MongoDB.
+- **Secure AI Interaction:** Backend securely handles communication with Azure OpenAI Service.
+- **Mock Payment/Upgrade:** Allows users to simulate upgrading from Free to Premium.
+- **Modern UI:** Built with React, Vite, TypeScript, Tailwind CSS, and Shadcn/ui.
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+- **Frontend:** React (Vite), TypeScript, Tailwind CSS, Shadcn/ui, React Router
+- **Backend:** Node.js, Express.js, TypeScript (implicitly, though JS files generated), Mongoose
+- **Database:** MongoDB (via Mongoose)
+- **Authentication:** JWT (via `jsonwebtoken`), Cookies (via `cookie-parser`)
+- **AI Service:** Azure OpenAI Service (via `fetch` in backend service)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/379f3ce6-0a1b-4485-ba9f-f39a20ee8e0f) and start prompting.
+## Prerequisites
 
-Changes made via Lovable will be committed automatically to this repo.
+- [Node.js](https://nodejs.org/) (v16 or later recommended)
+- [npm](https://www.npmjs.com/) or [yarn](https://yarnpkg.com/)
+- [Git](https://git-scm.com/)
+- Access to a MongoDB Atlas cluster (or other MongoDB instance)
+- Azure OpenAI Service API Key, Endpoint, and Deployment Name
 
-**Use your preferred IDE**
+## Project Structure
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+/
+|-- server/            # Backend Node.js/Express application
+|   |-- config/        # Database connection
+|   |-- controllers/   # Request handling logic
+|   |-- middleware/    # Authentication middleware
+|   |-- models/        # Mongoose schemas (User, Chat)
+|   |-- routes/        # API route definitions
+|   |-- services/      # Business logic (e.g., OpenAI interaction)
+|   |-- .env           # Backend environment variables (GITIGNORED)
+|   |-- .gitignore     # Server-specific gitignore
+|   |-- package.json   # Backend dependencies
+|   `-- server.js      # Backend entry point
+|-- src/               # Frontend React application
+|   |-- components/    # Reusable UI components
+|   |-- contexts/      # React Context API (Auth, Chat)
+|   |-- hooks/         # Custom React hooks
+|   |-- lib/           # Utilities (e.g., cn for Tailwind)
+|   |-- pages/         # Page components (Login, Signup, Chat, etc.)
+|   |-- utils/         # Frontend utilities (config loader, api helper)
+|   |-- App.tsx        # Main application component with routing
+|   `-- main.tsx       # Frontend entry point
+|-- .env               # Frontend environment variables (GITIGNORED)
+|-- .gitignore         # Root gitignore
+|-- index.html         # HTML entry point
+|-- package.json       # Frontend dependencies
+|-- README.md          # This file
+|-- tsconfig.json      # TypeScript config for frontend
+`-- vite.config.ts     # Vite configuration (including proxy)
 ```
 
-**Edit a file directly in GitHub**
+## Setup & Installation
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+1.  **Clone the Repository:**
 
-**Use GitHub Codespaces**
+    ```bash
+    git clone <your-repository-url>
+    cd <repository-folder-name>
+    ```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+2.  **Install Frontend Dependencies:**
 
-## What technologies are used for this project?
+    ```bash
+    npm install
+    # or
+    # yarn install
+    ```
 
-This project is built with .
+3.  **Install Backend Dependencies:**
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+    ```bash
+    cd server
+    npm install
+    # or
+    # yarn install
+    cd ..
+    ```
 
-## How can I deploy this project?
+4.  **Configure Backend Environment Variables:**
 
-Simply open [Lovable](https://lovable.dev/projects/379f3ce6-0a1b-4485-ba9f-f39a20ee8e0f) and click on Share -> Publish.
+    - Navigate to the `server/` directory.
+    - Create a file named `.env`.
+    - Add the following variables, replacing placeholders with your actual values:
 
-## Can I connect a custom domain to my Lovable project?
+      ```dotenv
+      # server/.env
+      MONGODB_URI=your_mongodb_connection_string
+      JWT_SECRET=your_strong_random_jwt_secret
 
-Yes, you can!
+      # Azure OpenAI Credentials (used by backend service)
+      AZURE_OPENAI_API_KEY=your_azure_openai_api_key
+      AZURE_OPENAI_ENDPOINT=your_azure_openai_endpoint_url
+      AZURE_OPENAI_DEPLOYMENT_NAME=your_azure_openai_deployment_name
+      # AZURE_OPENAI_API_VERSION=optional_api_version (defaults to 2024-02-15-preview)
+      # PORT=optional_backend_port (defaults to 5000)
+      ```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+5.  **Configure Frontend Environment Variables:**
+    - In the **root** directory of the project.
+    - Create a file named `.env`.
+    - Add the following variables (these are primarily for _display_ or frontend config loading, sensitive keys used by the backend are NOT needed here):
+      ```dotenv
+      # .env (root directory)
+      # No keys needed here anymore as the backend handles AI calls.
+      # If you had other frontend-specific variables, add them here prefixed with VITE_
+      # e.g., VITE_APP_TITLE=ChatBPT
+      ```
+      _Note: Previously, we put Azure keys here prefixed with `VITE_`. This is no longer necessary as the backend makes the AI calls.\_
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## Running the Application (Development)
+
+1.  **Start the Backend Server:**
+
+    - Open a terminal in the `server/` directory.
+    - Run:
+      ```bash
+      npm run dev
+      ```
+    - The backend should start, typically on `http://localhost:5000`.
+
+2.  **Start the Frontend Development Server:**
+
+    - Open a _separate_ terminal in the **root** project directory.
+    - Run:
+      ```bash
+      npm run dev
+      ```
+    - The frontend should start, typically on `http://localhost:5173`.
+    - The Vite proxy configured in `vite.config.ts` will forward `/api` requests to the backend.
+
+3.  **Access the Application:**
+    - Open your web browser and navigate to `http://localhost:5173` (or the port specified by Vite).

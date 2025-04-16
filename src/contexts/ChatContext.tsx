@@ -2,30 +2,66 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from './AuthContext';
 import { loadConfig } from '@/utils/config';
+import { fetchWithCredentials } from '@/utils/api'; // Import from utils
 
+// Define structure for message from backend (might differ slightly, e.g., _id)
+interface BackendMessage {
+    _id: string; // Assuming backend uses _id
+    content: string;
+    role: 'user' | 'assistant';
+    timestamp: string; // Backend typically sends dates as ISO strings
+}
+
+// Define structure for chat from backend
+interface BackendChat {
+    _id: string;
+    user: string; // User ID reference
+    title: string;
+    messages: BackendMessage[];
+    createdAt: string;
+    updatedAt: string;
+}
+
+// Frontend Message interface (can keep using Date objects)
 export interface Message {
-  id: string;
+  id: string; // Keep using frontend ID if needed for keys, map from _id
   content: string;
   role: 'user' | 'assistant';
   timestamp: Date;
 }
 
+// Frontend Chat interface
 export interface Chat {
-  id: string;
+  id: string; // Map from _id
   title: string;
   messages: Message[];
   createdAt: Date;
   updatedAt: Date;
 }
 
+// Helper to convert backend chat to frontend chat format
+const mapBackendChatToFrontend = (backendChat: BackendChat): Chat => ({
+    id: backendChat._id,
+    title: backendChat.title,
+    messages: backendChat.messages.map(msg => ({
+        id: msg._id, // Use backend message ID
+        content: msg.content,
+        role: msg.role,
+        timestamp: new Date(msg.timestamp)
+    })),
+    createdAt: new Date(backendChat.createdAt),
+    updatedAt: new Date(backendChat.updatedAt)
+});
+
 interface ChatContextType {
   chats: Chat[];
   currentChat: Chat | null;
-  isLoading: boolean;
-  createChat: () => void;
+  isLoading: boolean; // Combined loading state (fetching chats, sending messages)
+  isLoadingChats: boolean; // Specific state for loading initial chats
+  createChat: () => Promise<void>; // Make async
   selectChat: (chatId: string) => void;
   sendMessage: (content: string) => Promise<void>;
-  deleteChat: (chatId: string) => void;
+  deleteChat: (chatId: string) => Promise<void>; // Make async
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -41,64 +77,64 @@ export function useChat() {
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [chats, setChats] = useState<Chat[]>([]);
   const [currentChat, setCurrentChat] = useState<Chat | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // For sending messages
+  const [isLoadingChats, setIsLoadingChats] = useState(true); // For initial load
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user } = useAuth(); // Get user from AuthContext
 
-  // Load chats from local storage
+  // Load chats from backend when user logs in
   useEffect(() => {
-    if (user) {
-      const storedChats = localStorage.getItem(`chatbpt_chats_${user.id}`);
-      if (storedChats) {
+    const loadChats = async () => {
+      if (user) {
+        setIsLoadingChats(true);
         try {
-          const parsedChats = JSON.parse(storedChats);
-          // Convert string dates back to Date objects
-          const formattedChats = parsedChats.map((chat: any) => ({
-            ...chat,
-            createdAt: new Date(chat.createdAt),
-            updatedAt: new Date(chat.updatedAt),
-            messages: chat.messages.map((msg: any) => ({
-              ...msg,
-              timestamp: new Date(msg.timestamp)
-            }))
-          }));
-          setChats(formattedChats);
-          
+          const backendChats: BackendChat[] = await fetchWithCredentials('/api/chats');
+          const frontendChats = backendChats.map(mapBackendChatToFrontend);
+          setChats(frontendChats);
           // Set current chat to the most recent one if it exists
-          if (formattedChats.length > 0) {
-            setCurrentChat(formattedChats[0]);
+          if (frontendChats.length > 0) {
+            // Ensure sorting is correct based on updatedAt (backend already sorts)
+            setCurrentChat(frontendChats[0]); 
+          } else {
+            setCurrentChat(null);
           }
-        } catch (error) {
-          console.error('Failed to parse stored chats:', error);
+        } catch (error: any) {
+          console.error('Failed to load chats:', error);
+          toast({ title: "Error", description: `Failed to load chats: ${error.message}`, variant: "destructive" });
+          setChats([]); // Clear chats on error
+          setCurrentChat(null);
+        } finally {
+          setIsLoadingChats(false);
         }
+      } else {
+        // Clear chats when user logs out
+        setChats([]);
+        setCurrentChat(null);
+        setIsLoadingChats(false); // Not loading if no user
       }
-    } else {
-      // Clear chats when user logs out
-      setChats([]);
-      setCurrentChat(null);
-    }
-  }, [user]);
+    };
 
-  // Save chats to local storage whenever they change
-  useEffect(() => {
-    if (user && chats.length > 0) {
-      localStorage.setItem(`chatbpt_chats_${user.id}`, JSON.stringify(chats));
-    }
-  }, [chats, user]);
+    loadChats();
+  }, [user, toast]); // Depend on user
 
-  const createChat = () => {
+  // Remove useEffect that saves to localStorage
+  // useEffect(() => { ... save to localStorage ... }, [chats, user]);
+
+  const createChat = async () => {
     if (!user) return;
     
-    const newChat: Chat = {
-      id: Date.now().toString(),
-      title: 'New Chat',
-      messages: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    
-    setChats(prevChats => [newChat, ...prevChats]);
-    setCurrentChat(newChat);
+    // Consider adding a loading state for chat creation if needed
+    try {
+        const backendChat: BackendChat = await fetchWithCredentials('/api/chats', { method: 'POST' });
+        const newChat = mapBackendChatToFrontend(backendChat);
+        
+        setChats(prevChats => [newChat, ...prevChats]);
+        setCurrentChat(newChat);
+
+    } catch (error: any) {
+        console.error('Failed to create chat:', error);
+        toast({ title: "Error", description: `Failed to create new chat: ${error.message}`, variant: "destructive" });
+    }
   };
 
   const selectChat = (chatId: string) => {
@@ -110,125 +146,129 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   const sendMessage = async (content: string) => {
     if (!user || !content.trim() || !currentChat) {
+      // If no current chat, create one first
       if (!currentChat) {
-        createChat();
+          await createChat();
+          // Need to wait for state update or get the new chat ID somehow
+          // This part needs careful handling. Let's assume createChat sets currentChat immediately for now.
+          // A better approach might be to get the new chat from createChat response and use it directly.
+          // For simplicity, let's show a toast and return if currentChat isn't set after create
+          if (!currentChat) { // Re-check after creation attempt
+             toast({ title: "Info", description: "Please select or create a chat first.", variant: "default" });
+             return;
+          }
       }
-      return;
+      // If still no currentChat after trying to create, exit
+      if (!currentChat) return;
+    }
+
+    if (!currentChat) {
+        console.error("Cannot send message, current chat not available after creation attempt.");
+        toast({ title: "Error", description: "Could not establish a chat session.", variant: "destructive" });
+        return;
     }
 
     setIsLoading(true);
-    
-    try {
-      const config = loadConfig();
-      
-      if (!config.openaiApiKey) {
-        throw new Error('OpenAI API key not configured');
-      }
+    const chatId = currentChat.id;
+    const initialChatState = currentChat; // Store state before optimistic update
 
-      // Add user message
-      const userMessage: Message = {
-        id: `user-${Date.now()}`,
+    // 1. Optimistic UI Update (User Message)
+    const optimisticUserMessage: Message = {
+        id: `temp-user-${Date.now()}`,
         content,
         role: 'user',
         timestamp: new Date()
-      };
-      
-      // Update current chat with user message
-      const updatedChat = {
-        ...currentChat,
-        messages: [...currentChat.messages, userMessage],
-        updatedAt: new Date()
-      };
-      
-      setChats(prevChats => {
-        const otherChats = prevChats.filter(chat => chat.id !== currentChat.id);
-        return [updatedChat, ...otherChats];
-      });
-      
-      setCurrentChat(updatedChat);
-      
-      // Make real OpenAI API call
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.openaiApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [{ role: 'user', content }],
-          temperature: 0.7,
-        }),
-      });
+    };
+    setCurrentChat(prev => prev ? { ...prev, messages: [...prev.messages, optimisticUserMessage] } : null);
+    setChats(prev => prev.map(chat => 
+        chat.id === chatId 
+            ? { ...chat, messages: [...chat.messages, optimisticUserMessage] } 
+            : chat
+    ));
 
-      if (!response.ok) {
-        throw new Error('Failed to get response from OpenAI');
+    try {
+      // 2. Call Backend (which now handles user save -> AI call -> assistant save)
+      const response = await fetchWithCredentials(`/api/chats/${chatId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content }), // Only send user content
+      });
+      
+      // Destructure response from backend
+      const { chat: finalBackendChat, limitExceeded, aiError } = response;
+      
+      if (!finalBackendChat) {
+        throw new Error("Backend did not return final chat data.");
       }
 
-      const data = await response.json();
-      const aiResponse = data.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
+      // Map the final chat state from backend
+      const finalFrontendChat = mapBackendChatToFrontend(finalBackendChat);
       
-      // Update with AI response
-      const assistantMessage: Message = {
-        id: `assistant-${Date.now()}`,
-        content: aiResponse,
-        role: 'assistant',
-        timestamp: new Date()
-      };
+      // 3. Update UI with final state from backend
+      setCurrentChat(finalFrontendChat);
+      setChats(prev => prev.map(chat => chat.id === chatId ? finalFrontendChat : chat));
+
+      // 4. Handle AI Errors or Limit Exceeded flags from backend
+      if (aiError) {
+          console.error("AI Error reported by backend:", aiError);
+          toast({ title: "AI Error", description: aiError, variant: "destructive" });
+          // UI is already updated with the AI's error message saved by the backend
+      }
+      if (limitExceeded) {
+          console.log("Message limit reached, reported by backend.");
+          toast({ title: "Message Limit Reached", description: "You have reached your daily message limit. AI response was not generated/saved.", variant: "destructive" });
+          // UI is already updated with the chat state *without* the assistant message
+      }
       
-      // Update chat with AI response
-      const finalChat = {
-        ...updatedChat,
-        messages: [...updatedChat.messages, assistantMessage],
-        updatedAt: new Date()
-      };
-      
-      setChats(prevChats => {
-        const otherChats = prevChats.filter(chat => chat.id !== currentChat.id);
-        return [finalChat, ...otherChats];
-      });
-      
-      setCurrentChat(finalChat);
-      
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send message:', error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to send message. Please check your API configuration.",
+        title: "Error Sending Message",
+        description: error.message || "An unexpected error occurred.", 
         variant: "destructive"
       });
+      // Revert optimistic update on error
+      setCurrentChat(initialChatState); 
+      setChats(prev => prev.map(chat => chat.id === chatId ? initialChatState : chat));
+      
     } finally {
       setIsLoading(false);
     }
   };
 
-  const deleteChat = (chatId: string) => {
-    setChats(prevChats => {
-      const updatedChats = prevChats.filter(chat => chat.id !== chatId);
-      
-      // If the deleted chat was the current one, set a new current chat
-      if (currentChat && currentChat.id === chatId) {
-        if (updatedChats.length > 0) {
-          setCurrentChat(updatedChats[0]);
-        } else {
-          setCurrentChat(null);
+  const deleteChat = async (chatId: string) => {
+    // Optimistic UI update (remove immediately)
+    const previousChats = chats;
+    setChats(prevChats => prevChats.filter(chat => chat.id !== chatId));
+    if (currentChat && currentChat.id === chatId) {
+        setCurrentChat(chats.length > 1 ? chats.find(c => c.id !== chatId) || null : null);
+    }
+
+    try {
+        await fetchWithCredentials(`/api/chats/${chatId}`, { method: 'DELETE' });
+        toast({
+            title: "Chat deleted",
+            description: "The chat has been removed."
+        });
+        // If current chat was deleted, select the next available one (or null)
+        if (currentChat && currentChat.id === chatId) {
+            const remainingChats = previousChats.filter(chat => chat.id !== chatId);
+            setCurrentChat(remainingChats.length > 0 ? remainingChats[0] : null);
         }
-      }
-      
-      return updatedChats;
-    });
-    
-    toast({
-      title: "Chat deleted",
-      description: "The chat has been removed."
-    });
+    } catch (error: any) {
+        console.error('Failed to delete chat:', error);
+        toast({ title: "Error", description: `Failed to delete chat: ${error.message}`, variant: "destructive" });
+        // Revert optimistic update on error
+        setChats(previousChats);
+        // Maybe reset currentChat if it was optimistically changed
+    }
   };
 
   return (
     <ChatContext.Provider value={{
       chats,
       currentChat,
-      isLoading,
+      isLoading, // Combined loading state
+      isLoadingChats, // Specific state for initial load
       createChat,
       selectChat,
       sendMessage,

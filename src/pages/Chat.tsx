@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +7,7 @@ import { useChat, Message } from '@/contexts/ChatContext';
 import { Trash2, MessageSquare, PlusCircle, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Link } from 'react-router-dom';
 
 const Chat = () => {
   const [inputValue, setInputValue] = useState('');
@@ -205,9 +205,10 @@ const Chat = () => {
               </Button>
             </form>
             
-            {user?.subscriptionTier === 'free' && (
+            {user && user.subscriptionTier === 'free' && (
               <div className="mt-2 text-xs text-gray-500 text-center">
-                Free tier: 10 messages per day limit. <a href="/account" className="text-brand-purple hover:underline">Upgrade to Premium</a>
+                Free tier: Message limit applies. 
+                <Link to="/account" className="text-brand-purple hover:underline ml-1">Upgrade to Premium</Link>
               </div>
             )}
           </div>

@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,6 +11,7 @@ import Signup from "./pages/Signup";
 import Chat from "./pages/Chat";
 import Account from "./pages/Account";
 import NotFound from "./pages/NotFound";
+import PaymentPage from "./pages/Payment";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +52,11 @@ const AppRoutes = () => {
       <Route path="/account" element={
         <ProtectedRoute>
           <Account />
+        </ProtectedRoute>
+      } />
+      <Route path="/payment" element={
+        <ProtectedRoute>
+          <PaymentPage />
         </ProtectedRoute>
       } />
       <Route path="*" element={<NotFound />} />
